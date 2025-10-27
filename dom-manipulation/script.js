@@ -1,4 +1,4 @@
-// script.js - Dynamic Quote Generator with Web Storage and JSON import/export
+// script.js - Dynamic Quote Generator with Filtering, Web Storage & JSON
 
 let quotes = [
   { text: "The best way to get started is to quit talking and begin doing.", category: "Motivation" },
@@ -8,13 +8,12 @@ let quotes = [
 
 const quoteDisplay = document.getElementById("quoteDisplay");
 const newQuoteButton = document.getElementById("newQuote");
+const categoryFilter = document.getElementById("categoryFilter");
 
-// Load quotes from localStorage if available
+// Load quotes from localStorage
 function loadQuotes() {
   const storedQuotes = localStorage.getItem("quotes");
-  if (storedQuotes) {
-    quotes = JSON.parse(storedQuotes);
-  }
+  if (storedQuotes) quotes = JSON.parse(storedQuotes);
 }
 
 // Save quotes to localStorage
@@ -22,19 +21,58 @@ function saveQuotes() {
   localStorage.setItem("quotes", JSON.stringify(quotes));
 }
 
-// Display a random quote
+// ✅ Populate category dropdown dynamically
+function populateCategories() {
+  const uniqueCategories = [...new Set(quotes.map(q => q.category))];
+  categoryFilter.innerHTML = '<option value="all">All Categories</option>';
+  uniqueCategories.forEach(category => {
+    const option = document.createElement("option");
+    option.value = category;
+    option.textContent = category;
+    categoryFilter.appendChild(option);
+  });
+
+  // Restore last selected category from storage
+  const savedFilter = localStorage.getItem("selectedCategory");
+  if (savedFilter) {
+    categoryFilter.value = savedFilter;
+  }
+}
+
+// ✅ Display a random quote (filtered if needed)
 function showRandomQuote() {
-  const randomIndex = Math.floor(Math.random() * quotes.length);
-  const quote = quotes[randomIndex];
+  const selectedCategory = categoryFilter.value;
+  let filteredQuotes = quotes;
+
+  if (selectedCategory !== "all") {
+    filteredQuotes = quotes.filter(q => q.category === selectedCategory);
+  }
+
+  if (filteredQuotes.length === 0) {
+    quoteDisplay.innerHTML = `<p>No quotes found for this category.</p>`;
+    return;
+  }
+
+  const randomIndex = Math.floor(Math.random() * filteredQuotes.length);
+  const quote = filteredQuotes[randomIndex];
+
   quoteDisplay.innerHTML = `
     <p><strong>${quote.text}</strong></p>
     <p>— <em>${quote.category}</em></p>
   `;
-  // Save the last viewed quote to sessionStorage
+
+  // Save last viewed quote and category
   sessionStorage.setItem("lastViewedQuote", JSON.stringify(quote));
+  localStorage.setItem("selectedCategory", selectedCategory);
 }
 
-// Create the Add Quote form dynamically
+// ✅ Filter quotes by selected category
+function filterQuotes() {
+  localStorage.setItem("selectedCategory", categoryFilter.value);
+  showRandomQuote();
+}
+
+// ✅ Create Add Quote form dynamically
 function createAddQuoteForm() {
   const formDiv = document.createElement("div");
 
@@ -55,36 +93,28 @@ function createAddQuoteForm() {
     const text = quoteInput.value.trim();
     const category = categoryInput.value.trim();
 
-    if (text === "" || category === "") {
+    if (!text || !category) {
       alert("Please fill in both fields!");
       return;
     }
 
-    // Add new quote
     const newQuote = { text, category };
     quotes.push(newQuote);
     saveQuotes();
-
-    // Update DOM
-    quoteDisplay.innerHTML = `
-      <p><strong>${text}</strong></p>
-      <p>— <em>${category}</em></p>
-    `;
+    populateCategories();
 
     quoteInput.value = "";
     categoryInput.value = "";
-
-    alert("New quote added!");
+    alert("New quote added successfully!");
   });
 
   formDiv.appendChild(quoteInput);
   formDiv.appendChild(categoryInput);
   formDiv.appendChild(addButton);
-
   document.body.appendChild(formDiv);
 }
 
-// ✅ Export quotes to JSON file
+// ✅ Export quotes as JSON file
 function exportToJsonFile() {
   const dataStr = JSON.stringify(quotes, null, 2);
   const blob = new Blob([dataStr], { type: "application/json" });
@@ -98,7 +128,7 @@ function exportToJsonFile() {
   URL.revokeObjectURL(url);
 }
 
-// ✅ Import quotes from a JSON file
+// ✅ Import quotes from JSON file
 function importFromJsonFile(event) {
   const fileReader = new FileReader();
   fileReader.onload = function (event) {
@@ -107,6 +137,7 @@ function importFromJsonFile(event) {
       if (Array.isArray(importedQuotes)) {
         quotes.push(...importedQuotes);
         saveQuotes();
+        populateCategories();
         alert("Quotes imported successfully!");
       } else {
         alert("Invalid file format. Expected an array of quotes.");
@@ -118,9 +149,10 @@ function importFromJsonFile(event) {
   fileReader.readAsText(event.target.files[0]);
 }
 
-// Initialize app
+// ✅ Initialize everything
 function init() {
   loadQuotes();
+  populateCategories();
 
   const lastViewed = sessionStorage.getItem("lastViewedQuote");
   if (lastViewed) {
